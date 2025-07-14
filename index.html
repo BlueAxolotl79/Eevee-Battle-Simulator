@@ -3,271 +3,201 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pokemon Battle: Eevee vs Evolutions</title>
+    <title>Eevee Shooter Game</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            background-color: #f0f0f0;
-        }
-
-        .battle-container {
-            width: 70%;
+        canvas {
+            background: #222;
+            display: block;
             margin: 0 auto;
-            padding: 20px;
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
-
-        .battle-field {
-            display: flex;
-            justify-content: space-between;
-            margin: 20px 0;
-        }
-
-        .pokemon {
+        body {
             text-align: center;
-        }
-
-        .pokemon-sprite {
-            width: 150px;
-        }
-
-        .hp-bar {
-            width: 150px;
-            height: 20px;
-            background-color: lightgray;
-            border-radius: 10px;
-            margin: 10px auto;
-            position: relative;
-        }
-
-        .hp-fill {
-            height: 100%;
-            width: 100%;
-            background-color: green;
-            border-radius: 10px;
-        }
-
-        .controls button {
-            padding: 10px 20px;
-            margin: 10px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-
-        .log {
-            margin-top: 20px;
-            height: 100px;
-        }
-
-        /* Win screen styles */
-        .win-screen {
-            display: none;
-            margin-top: 20px;
-            font-size: 24px;
-            color: #2c3e50;
+            color: white;
+            font-family: Arial, sans-serif;
         }
     </style>
 </head>
 <body>
-    <div class="battle-container">
-        <h1>Eevee Battle Simulator</h1>
-        
-        <!-- Battle area -->
-        <div class="battle-field">
-            <div class="pokemon player">
-                <h2>Your Eevee</h2>
-                <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/133.png" alt="Eevee" class="pokemon-sprite">
-                <div class="hp-bar">
-                    <div id="player-hp" class="hp-fill"></div>
-                </div>
-                <p id="player-hp-text">HP: 100/100</p>
-            </div>
-
-            <div class="pokemon enemy">
-                <h2 id="enemy-name">Enemy</h2>
-                <img id="enemy-sprite" src="" alt="Enemy Eeveelution" class="pokemon-sprite">
-                <div class="hp-bar">
-                    <div id="enemy-hp" class="hp-fill"></div>
-                </div>
-                <p id="enemy-hp-text">HP: 120/120</p>
-            </div>
-        </div>
-        
-        <!-- Action buttons -->
-        <div class="controls">
-            <h3>Choose a move:</h3>
-            <div id="move-buttons">
-                <!-- Buttons will be generated here -->
-            </div>
-        </div>
-
-        <!-- Battle log -->
-        <div class="log">
-            <p id="battle-log">What will Eevee do?</p>
-        </div>
-
-        <!-- Win screen -->
-        <div id="win-screen" class="win-screen">
-            <h2 id="winner-text"></h2>
-            <button onclick="restartGame()">Play Again</button>
-        </div>
-    </div>
-
+    <h1>Eevee Shooter: Shoot Evolutions!</h1>
+    <!-- Canvas where the game will be rendered -->
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <!-- Score and Level display -->
+    <p id="gameInfo">Score: 0 | Level: 1</p>
+    
     <script>
-        // Initial HP for both Pokemon
-        let playerHP = 100;
-        let enemyHP = 120;
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const eeveeImg = new Image();
+        eeveeImg.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/133.png'; // Replace with Eevee image URL
+        const evolutions = ['flareon', 'vaporeon', 'jolteon']; // Example names for evolutions
+        const evolutionImgs = {
+            flareon: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/136.png',  // Replace with real image URLs
+            vaporeon: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/134.png',
+            jolteon: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/135.png'
+        };
+        const stars = [];
+        const enemies = [];
+        let score = 0;
+        let level = 1;
+        let enemySpeed = 1;
+        let spawnRate = 3000;  // Enemies spawn every 3 seconds
+        
+        // Game objects
+        const eevee = {
+            x: canvas.width / 2,
+            y: canvas.height - 60,
+            width: 50,
+            height: 50,
+            speed: 5,
+            dx: 0,
+            dy: 0
+        };
 
-        const playerHpBar = document.getElementById("player-hp");
-        const playerHpText = document.getElementById("player-hp-text");
-        const enemyHpBar = document.getElementById("enemy-hp");
-        const enemyHpText = document.getElementById("enemy-hp-text");
-        const battleLog = document.getElementById("battle-log");
-        const enemyName = document.getElementById("enemy-name");
-        const enemySprite = document.getElementById("enemy-sprite");
-        const moveButtonsDiv = document.getElementById("move-buttons");
-        const winScreen = document.getElementById("win-screen");
-        const winnerText = document.getElementById("winner-text");
-
-        // Define possible enemy Eeveelutions and their movesets
-        const eeveelutions = [
-            { name: "Vaporeon", hp: 120, sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/134.png", moves: ["Surf", "Ice Beam", "Hydro Pump", "Acid Armor"] },
-            { name: "Jolteon", hp: 110, sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/135.png", moves: ["Thunderbolt", "Pin Missile", "Thunder", "Quick Attack"] },
-            { name: "Flareon", hp: 130, sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/136.png", moves: ["Flamethrower", "Fire Blast", "Quick Attack", "Smog"] },
-            { name: "Espeon", hp: 110, sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/196.png", moves: ["Psychic", "Shadow Ball", "Future Sight", "Swift"] },
-            { name: "Umbreon", hp: 130, sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/197.png", moves: ["Faint Attack", "Confuse Ray", "Pursuit", "Moonlight"] },
-            { name: "Leafeon", hp: 110, sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/470.png", moves: ["Leaf Blade", "SolarBeam", "Synthesis", "Razor Leaf"] },
-            { name: "Glaceon", hp: 110, sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/471.png", moves: ["Ice Beam", "Blizzard", "Hail", "Icy Wind"] },
-            { name: "Sylveon", hp: 110, sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/700.png", moves: ["Moonblast", "Hyper Voice", "Draining Kiss", "Quick Attack"] }
-        ];
-
-        // Select a random enemy Eeveelution at the start of the game
-        let selectedEnemy = eeveelutions[Math.floor(Math.random() * eeveelutions.length)];
-        enemyHP = selectedEnemy.hp;
-
-        enemyName.textContent = `Enemy ${selectedEnemy.name}`;
-        enemyHpText.textContent = `HP: ${enemyHP}/${selectedEnemy.hp}`;
-        enemySprite.src = selectedEnemy.sprite;
-
-        // Full Moveset for Eevee
-        const allMoves = [
-            { name: "Tackle", damage: Math.floor(Math.random() * 10) + 10 },
-            { name: "Quick Attack", damage: Math.floor(Math.random() * 15) + 5 },
-            { name: "Bite", damage: Math.floor(Math.random() * 20) + 5 },
-            { name: "Psychic", damage: Math.floor(Math.random() * 30) + 20 },
-            { name: "Hyper Beam", damage: Math.floor(Math.random() * 40) + 30 },
-            { name: "Thunderbolt", damage: Math.floor(Math.random() * 25) + 15 },
-            { name: "Ice Beam", damage: Math.floor(Math.random() * 25) + 15 },
-            { name: "Earthquake", damage: Math.floor(Math.random() * 35) + 20 },
-            { name: "Fire Blast", damage: Math.floor(Math.random() * 35) + 25 },
-            { name: "Blizzard", damage: Math.floor(Math.random() * 30) + 20 },
-            { name: "Surf", damage: Math.floor(Math.random() * 25) + 15 },
-            { name: "SolarBeam", damage: Math.floor(Math.random() * 35) + 25 },
-            { name: "Thunder", damage: Math.floor(Math.random() * 30) + 20 },
-            { name: "Recover", heal: Math.floor(Math.random() * 20) + 10 },
-            { name: "Softboiled", heal: Math.floor(Math.random() * 20) + 10 }
-        ];
-
-        // Generate 4 random moves each turn for Eevee
-        function generateRandomMoves() {
-            const randomMoves = [];
-            while (randomMoves.length < 4) {
-                let randomMove = allMoves[Math.floor(Math.random() * allMoves.length)];
-                if (!randomMoves.includes(randomMove)) {
-                    randomMoves.push(randomMove);
-                }
-            }
-            return randomMoves;
+        // Update the display of score and level
+        function updateScoreLevel() {
+            document.getElementById('gameInfo').innerText = `Score: ${score} | Level: ${level}`;
         }
 
-        // Render move buttons for Eevee
-        function renderMoveButtons(moves) {
-            moveButtonsDiv.innerHTML = '';
-            moves.forEach(move => {
-                const button = document.createElement("button");
-                button.textContent = move.name;
-                button.onclick = () => performMove(move);
-                moveButtonsDiv.appendChild(button);
+        function drawEevee() {
+            ctx.drawImage(eeveeImg, eevee.x, eevee.y, eevee.width, eevee.height);
+        }
+
+        function moveEevee() {
+            eevee.x += eevee.dx;
+            eevee.y += eevee.dy;
+
+            // Prevent Eevee from going off the canvas
+            if (eevee.x < 0) eevee.x = 0;
+            if (eevee.x + eevee.width > canvas.width) eevee.x = canvas.width - eevee.width;
+            if (eevee.y < 0) eevee.y = 0;
+            if (eevee.y + eevee.height > canvas.height) eevee.y = canvas.height - eevee.height;
+        }
+
+        function shootStar() {
+            stars.push({ x: eevee.x + eevee.width / 2 - 5, y: eevee.y, width: 10, height: 10, dy: -5 });
+        }
+
+        function drawStars() {
+            stars.forEach((star, index) => {
+                ctx.fillStyle = 'yellow';
+                ctx.fillRect(star.x, star.y, star.width, star.height);
+                star.y += star.dy;
+
+                // Remove stars that go off the screen
+                if (star.y < 0) {
+                    stars.splice(index, 1);
+                }
             });
         }
 
-        // Perform a move
-        function performMove(selectedMove) {
-            const enemyMove = selectedEnemy.moves[Math.floor(Math.random() * selectedEnemy.moves.length)];
-            const playerDamage = selectedMove.damage || 0;
-            const healAmount = selectedMove.heal || 0;
-            const enemyDamage = Math.floor(Math.random() * 20) + 10;
+        function spawnEnemy() {
+            const enemyType = evolutions[Math.floor(Math.random() * evolutions.length)];
+            const enemyImg = new Image();
+            enemyImg.src = evolutionImgs[enemyType];
+            enemies.push({
+                img: enemyImg,
+                type: enemyType,
+                x: Math.random() * (canvas.width - 50),
+                y: -50,
+                width: 50,
+                height: 50,
+                dy: enemySpeed
+            });
+        }
 
-            // Eevee heals
-            if (healAmount > 0) {
-                playerHP = Math.min(100, playerHP + healAmount);
-                battleLog.textContent = `Eevee used ${selectedMove.name} and healed for ${healAmount} HP!`;
-            } else {
-                // Eevee attacks
-                battleLog.textContent = `Eevee used ${selectedMove.name} for ${playerDamage} damage!`;
-                enemyHP = Math.max(0, enemyHP - playerDamage);
+        function drawEnemies() {
+            enemies.forEach((enemy, index) => {
+                ctx.drawImage(enemy.img, enemy.x, enemy.y, enemy.width, enemy.height);
+                enemy.y += enemy.dy;
+
+                // Shrink hitbox by 20%
+                const hitboxWidth = enemy.width * 0.8;
+                const hitboxHeight = enemy.height * 0.8;
+                const hitboxX = enemy.x + (enemy.width - hitboxWidth) / 2;
+                const hitboxY = enemy.y + (enemy.height - hitboxHeight) / 2;
+
+                // Remove enemies that go off screen
+                if (enemy.y > canvas.height) {
+                    enemies.splice(index, 1);
+                }
+
+                // Check for collisions between stars and enemies (smaller hitbox)
+                stars.forEach((star, starIndex) => {
+                    if (
+                        star.x < hitboxX + hitboxWidth &&
+                        star.x + star.width > hitboxX &&
+                        star.y < hitboxY + hitboxHeight &&
+                        star.y + star.height > hitboxY
+                    ) {
+                        stars.splice(starIndex, 1);  // Remove star
+                        enemies.splice(index, 1);    // Remove enemy
+                        score += 10;
+                        updateScoreLevel();  // Update score and level display
+
+                        if (score % 100 === 0) {  // Level up every 100 points
+                            level++;
+                            enemySpeed += 0.5;
+                            spawnRate -= 300;  // Enemies spawn faster
+                            updateScoreLevel();  // Update score and level display
+                        }
+                    }
+                });
+
+                // Game Over if enemy reaches Eevee (smaller hitbox)
+                if (
+                    eevee.x < hitboxX + hitboxWidth &&
+                    eevee.x + eevee.width > hitboxX &&
+                    eevee.y < hitboxY + hitboxHeight &&
+                    eevee.y + eevee.height > hitboxY
+                ) {
+                    alert('Game Over! Final Score: ' + score);
+                    document.location.reload();
+                }
+            });
+        }
+
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            moveEevee();
+            drawEevee();
+            drawStars();
+            drawEnemies();
+
+            requestAnimationFrame(update);
+        }
+
+        function keyDown(e) {
+            if (e.key === 'ArrowRight') {
+                eevee.dx = eevee.speed;
+            } else if (e.key === 'ArrowLeft') {
+                eevee.dx = -eevee.speed;
+            } else if (e.key === 'ArrowUp') {
+                eevee.dy = -eevee.speed;
+            } else if (e.key === 'ArrowDown') {
+                eevee.dy = eevee.speed;
+            } else if (e.code === 'Space') {  // Detect space bar press to shoot stars
+                shootStar();
             }
+        }
 
-            // Enemy counter-attacks if Eevee's move wasn't a heal
-            if (healAmount === 0) {
-                battleLog.textContent += ` ${selectedEnemy.name} used ${enemyMove} and dealt ${enemyDamage} damage!`;
-                playerHP = Math.max(0, playerHP - enemyDamage);
+        function keyUp(e) {
+            if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                eevee.dx = 0;
+            } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                eevee.dy = 0;
             }
-
-            // Update HP bars
-            updateHpBars();
-
-            // Check if the battle is over
-            if (enemyHP <= 0) {
-                showWinScreen("Eevee wins!");
-            } else if (playerHP <= 0) {
-                showWinScreen(`${selectedEnemy.name} wins!`);
-            }
-
-            // Generate new random moves for Eevee for the next turn
-            renderMoveButtons(generateRandomMoves());
         }
 
-        // Update HP bars
-        function updateHpBars() {
-            playerHpBar.style.width = playerHP + "%";
-            playerHpText.textContent = `HP: ${playerHP}/100`;
+        // Event listeners for keyboard input
+        document.addEventListener('keydown', keyDown);
+        document.addEventListener('keyup', keyUp);
 
-            enemyHpBar.style.width = (enemyHP / selectedEnemy.hp) * 100 + "%";
-            enemyHpText.textContent = `HP: ${enemyHP}/${selectedEnemy.hp}`;
-        }
+        // Enemy spawning loop
+        setInterval(spawnEnemy, spawnRate);
 
-        // Show win screen
-        function showWinScreen(message) {
-            winScreen.style.display = 'block'; // Show the win screen
-            winnerText.textContent = message; // Set the winner message
-            moveButtonsDiv.innerHTML = ''; // Clear move buttons
-        }
-
-        // Restart the game
-        function restartGame() {
-            playerHP = 100;
-            selectedEnemy = eeveelutions[Math.floor(Math.random() * eeveelutions.length)];
-            enemyHP = selectedEnemy.hp;
-
-            enemyName.textContent = `Enemy ${selectedEnemy.name}`;
-            enemyHpText.textContent = `HP: ${enemyHP}/${selectedEnemy.hp}`;
-            enemySprite.src = selectedEnemy.sprite;
-
-            playerHpBar.style.width = playerHP + "%";
-            enemyHpBar.style.width = (enemyHP / selectedEnemy.hp) * 100 + "%";
-            playerHpText.textContent = `HP: ${playerHP}/100`;
-            enemyHpText.textContent = `HP: ${enemyHP}/${selectedEnemy.hp}`;
-            battleLog.textContent = "What will Eevee do?";
-            winScreen.style.display = 'none'; // Hide the win screen
-            renderMoveButtons(generateRandomMoves()); // Generate new moves for the next turn
-        }
-
-        // Initialize the game by generating random moves for the first turn
-        renderMoveButtons(generateRandomMoves());
+        // Start the game
+        update();
     </script>
 </body>
 </html>
